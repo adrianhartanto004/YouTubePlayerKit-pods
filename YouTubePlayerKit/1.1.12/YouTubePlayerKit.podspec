@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
     spec.name                     = 'YouTubePlayerKit'
-    spec.version                  = '0.0.1'
+    spec.version                  = '1.1.12'
     spec.homepage                 = 'https://github.com/adrianhartanto004/YouTubePlayerKit-pods'
     spec.source                   = { :git => "https://github.com/SvenTiigi/YouTubePlayerKit.git", :tag => spec.version.to_s }
     spec.authors                  = ''
