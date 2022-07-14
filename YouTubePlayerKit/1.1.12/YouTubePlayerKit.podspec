@@ -10,6 +10,7 @@ Pod::Spec.new do |spec|
     spec.weak_frameworks          = "SwiftUI", "Foundation"
     spec.ios.deployment_target    = '15'
     spec.source_files             = 'Sources/**/*.{swift}','Sources/Resources/**/*.{html}'
+    spec.resource                 = 'Sources/Resources/**/*.{html}'
     spec.resource_bundles = {
         'YouTubePlayerKit' => ['Sources/Resources/**/*.{html}']
     }    
