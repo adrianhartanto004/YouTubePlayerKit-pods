@@ -12,7 +12,6 @@ Pod::Spec.new do |spec|
     spec.source_files             = 'Sources/**/*.{swift}','Sources/Resources/**/*.{html}'
     spec.resource                 = 'Sources/Resources/**/*.{html}'
     spec.resource_bundles = {
-        'YouTubePlayerKit' => ['Sources/Resources/**/*.{html}']
+        'YouTubePlayerKit_YouTubePlayerKit' => ['Sources/Resources/**/*.{html}']
     }    
-    spec.static_framework         = true
 end
