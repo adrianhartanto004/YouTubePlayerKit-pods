@@ -9,6 +9,6 @@ Pod::Spec.new do |spec|
     spec.swift_versions           = ['5.0']
     spec.weak_frameworks          = "SwiftUI", "Foundation"
     spec.ios.deployment_target    = '15'
-    spec.source_files             = 'Sources/**/*.{swift}','Sources/Resources/**/*.{html}' ,'Sources/**'
-    spec.static_framework         = true
+    spec.source_files             = 'Sources/**/*.{swift}','Sources/Resources/**/*.{html}'
+    spec.resource_bundles         = 'Sources/Resources/**/*.{html}'
 end
