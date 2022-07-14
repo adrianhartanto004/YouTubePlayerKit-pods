@@ -7,7 +7,7 @@ Pod::Spec.new do |spec|
     spec.license                  = ''
     spec.summary                  = 'YouTubePlayerKit pod library'
     spec.swift_versions           = ['5.0']
-    spec.weak_frameworks          = "SwiftUI"
+    spec.weak_frameworks          = "SwiftUI", "Foundation"
     spec.ios.deployment_target    = '15'
     spec.source_files             = 'Sources/**/*.{swift}','Sources/Resources/**/*.{html}' ,'Sources/**'
     spec.static_framework         = true
