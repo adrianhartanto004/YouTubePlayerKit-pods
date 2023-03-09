@@ -87,18 +87,27 @@ private extension YouTubePlayerWebView {
         func makeUIView(
             context: Context
         ) -> YouTubePlayerWebView {
-            .init(player: self.player)
+            self.player.webView
         }
         
         /// Update YouTubePlayerWebView
         /// - Parameters:
-        ///   - uiView: The YouTubePlayerWebView
+        ///   - playerWebView: The YouTubePlayerWebView
         ///   - context: The Context
         func updateUIView(
-            _ uiView: YouTubePlayerWebView,
+            _ playerWebView: YouTubePlayerWebView,
             context: Context
+        ) {}
+        
+        /// Dismantle YouTubePlayerWebView
+        /// - Parameters:
+        ///   - playerWebView: The YouTubePlayerWebView
+        ///   - coordinator: The Coordinaotr
+        static func dismantleUIView(
+            _ playerWebView: YouTubePlayerWebView,
+            coordinator: Void
         ) {
-            uiView.player = self.player
+            playerWebView.player?.pause()
         }
         
     }
@@ -115,18 +124,27 @@ private extension YouTubePlayerWebView {
         func makeNSView(
             context: Context
         ) -> YouTubePlayerWebView {
-            .init(player: self.player)
+            self.player.webView
         }
         
         /// Update YouTubePlayerWebView
         /// - Parameters:
-        ///   - nsView: The YouTubePlayerWebView
+        ///   - playerWebView: The YouTubePlayerWebView
         ///   - context: The Context
         func updateNSView(
-            _ nsView: YouTubePlayerWebView,
+            _ playerWebView: YouTubePlayerWebView,
             context: Context
+        ) {}
+        
+        /// Dismantle YouTubePlayerWebView
+        /// - Parameters:
+        ///   - playerWebView: The YouTubePlayerWebView
+        ///   - coordinator: The Coordinaotr
+        static func dismantleNSView(
+            _ playerWebView: YouTubePlayerWebView,
+            coordinator: Void
         ) {
-            nsView.player = self.player
+            playerWebView.player?.pause()
         }
         
     }

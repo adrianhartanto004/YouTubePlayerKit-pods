@@ -10,17 +10,7 @@ final class YouTubePlayerWebView: WKWebView {
     // MARK: Properties
     
     /// The YouTubePlayer
-    var player: YouTubePlayer {
-        didSet {
-            // Verify YouTubePlayer reference has changed
-            guard self.player !== oldValue else {
-                // Otherwise return out of function
-                return
-            }
-            // Re-Load Player
-            self.loadPlayer()
-        }
-    }
+    private(set) weak var player: YouTubePlayer?
     
     /// The origin URL
     private(set) lazy var originURL: URL? = Bundle
@@ -29,25 +19,14 @@ final class YouTubePlayerWebView: WKWebView {
         .flatMap { ["https://", $0.lowercased()].joined() }
         .flatMap(URL.init)
     
+    /// The YouTubePlayerWebView Event PassthroughSubject
+    private(set) lazy var eventSubject = PassthroughSubject<Event, Never>()
+    
     /// The Layout Lifecycle Subject
     private lazy var layoutLifecycleSubject = PassthroughSubject<CGRect, Never>()
     
-    /// The frame observation Cancellable
-    private var frameObservation: AnyCancellable?
-    
-    // MARK: Subjects
-    
-    /// The YouTubePlayer State CurrentValueSubject
-    private(set) lazy var playerStateSubject = CurrentValueSubject<YouTubePlayer.State?, Never>(nil)
-    
-    /// The YouTubePlayer PlaybackState CurrentValueSubject
-    private(set) lazy var playbackStateSubject = CurrentValueSubject<YouTubePlayer.PlaybackState?, Never>(nil)
-    
-    /// The YouTubePlayer PlaybackQuality CurrentValueSubject
-    private(set) lazy var playbackQualitySubject = CurrentValueSubject<YouTubePlayer.PlaybackQuality?, Never>(nil)
-    
-    /// The YouTubePlayer PlaybackRate CurrentValueSubject
-    private(set) lazy var playbackRateSubject = CurrentValueSubject<YouTubePlayer.PlaybackRate?, Never>(nil)
+    /// The cancellables
+    var cancellables = Set<AnyCancellable>()
     
     // MARK: Initializer
     
@@ -61,16 +40,31 @@ final class YouTubePlayerWebView: WKWebView {
         // Super init
         super.init(
             frame: .zero,
-            configuration: .youTubePlayer
+            configuration: {
+                // Initialize WebView Configuration
+                let configuration = WKWebViewConfiguration()
+                #if !os(macOS)
+                // Allows inline media playback
+                configuration.allowsInlineMediaPlayback = true
+                #endif
+                // No media types requiring user action for playback
+                configuration.mediaTypesRequiringUserActionForPlayback = []
+                // Return configuration
+                return configuration
+            }()
         )
         // Setup
         self.setup()
+        // Load
+        self.load(using: player)
     }
     
-    /// Initializer with NSCoder always returns nil
-    required init?(coder: NSCoder) {
-        nil
-    }
+    /// Initializer with NSCoder is unavailable.
+    /// Use `init(player:)`
+    @available(*, unavailable)
+    required init?(
+        coder aDecoder: NSCoder
+    ) { nil }
     
     // MARK: View-Lifecycle
     
@@ -90,6 +84,16 @@ final class YouTubePlayerWebView: WKWebView {
     }
     #endif
     
+    #if os(macOS)
+    /// ScrollWheel Event
+    /// - Parameter event: The NSEvent
+    override func scrollWheel(with event: NSEvent) {
+        // Explicity overriden without super invocation
+        // to disable scrolling on macOS
+        self.nextResponder?.scrollWheel(with: event)
+    }
+    #endif
+    
 }
 
 // MARK: - Setup
@@ -99,40 +103,25 @@ private extension YouTubePlayerWebView {
     /// Setup YouTubePlayerWebView
     func setup() {
         // Setup frame observation
-        self.frameObservation = self
-            .publisher(
-                for: \.frame,
-                options: [.new]
+        self.publisher(
+            for: \.frame,
+            options: [.new]
+        )
+        .merge(
+            with: self.layoutLifecycleSubject
+        )
+        .removeDuplicates()
+        .sink { [weak self] frame in
+            // Send frame changed event
+            self?.eventSubject.send(
+                .frameChanged(frame)
             )
-            .merge(
-                with: self.layoutLifecycleSubject
-            )
-            .map(\.size)
-            .removeDuplicates()
-            .sink { [weak self] frame in
-                // Initialize parameters
-                let parameters = [
-                    frame.width,
-                    frame.height
-                ]
-                .map(String.init)
-                .joined(separator: ",")
-                // Set YouTubePlayer Size
-                self?.evaluate(
-                    javaScript: "setYouTubePlayerSize(\(parameters));"
-                )
-            }
-        // Set YouTubePlayerAPI on current Player
-        self.player.api = self
+        }
+        .store(in: &self.cancellables)
         // Set navigation delegate
         self.navigationDelegate = self
         // Set ui delegate
         self.uiDelegate = self
-        #if !os(macOS)
-        // Set clear background color
-        self.backgroundColor = .clear
-        // Disable opaque
-        self.isOpaque = false
         // Set autoresizing masks
         self.autoresizingMask = {
             #if os(macOS)
@@ -141,33 +130,113 @@ private extension YouTubePlayerWebView {
             return [.flexibleWidth, .flexibleHeight]
             #endif
         }()
+        #if !os(macOS)
+        // Set clear background color
+        self.backgroundColor = .clear
+        // Disable opaque
+        self.isOpaque = false
         // Disable scrolling
         self.scrollView.isScrollEnabled = false
+        self.scrollView.showsVerticalScrollIndicator = false
+        self.scrollView.showsHorizontalScrollIndicator = false
         // Disable bounces of ScrollView
         self.scrollView.bounces = false
         #endif
-        // Load YouTubePlayer
-        self.loadPlayer()
     }
     
 }
 
-// MARK: - WKWebViewConfiguration+youTubePlayer
+// MARK: - YouTubePlayerWebView+loadPlayer
 
-private extension WKWebViewConfiguration {
+extension YouTubePlayerWebView {
     
-    /// The YouTubePlayer WKWebViewConfiguration
-    static var youTubePlayer: WKWebViewConfiguration {
-        // Initialize WebView Configuration
-        let configuration = WKWebViewConfiguration()
+    /// Load the YouTubePlayer to this WKWebView
+    /// - Returns: A Bool value if the YouTube player has been successfully loaded
+    @discardableResult
+    func load(
+        using player: YouTubePlayer
+    ) -> Bool {
+        // Declare YouTubePlayer HTML
+        let youTubePlayerHTML: YouTubePlayer.HTML
+        do {
+            // Try to initialize YouTubePlayer HTML
+            youTubePlayerHTML = try .init(
+                options: .init(
+                    playerSource: player.source,
+                    playerConfiguration: player.configuration,
+                    originURL: self.originURL
+                )
+            )
+        } catch {
+            // Send error state
+            player.playerStateSubject.send(
+                .error(
+                    .setupFailed(error)
+                )
+            )
+            // Return false as setup has failed
+            return false
+        }
+        // Update player
+        self.player = player
         #if !os(macOS)
-        // Allows inline media playback
-        configuration.allowsInlineMediaPlayback = true
+        // Update allows Picture-in-Picture media playback
+        self.configuration.allowsPictureInPictureMediaPlayback = player
+            .configuration
+            .allowsPictureInPictureMediaPlayback ?? true
+        // Update contentInsetAdjustmentBehavior
+        self.scrollView.contentInsetAdjustmentBehavior = player
+            .configuration
+            .automaticallyAdjustsContentInsets
+            .flatMap { $0 ? .automatic : .never }
+            ?? .automatic
+        #else
+        // Update automaticallyAdjustsContentInsets
+        self.enclosingScrollView?.automaticallyAdjustsContentInsets = player
+            .configuration
+            .automaticallyAdjustsContentInsets
+            ?? true
         #endif
-        // No media types requiring user action for playback
-        configuration.mediaTypesRequiringUserActionForPlayback = []
-        // Return configuration
-        return configuration
+        // Set HTML element fullscreen enabled if fullscreen mode is set to web
+        // which results in a fullscreen YouTube player web user interface
+        // instead of the system fullscreen AVPlayerViewController
+        self.configuration.preferences.isHTMLElementFullscreenEnabled = player.configuration.fullscreenMode == .web
+        // Set custom user agent
+        self.customUserAgent = player.configuration.customUserAgent
+        // Load HTML string
+        self.loadHTMLString(
+            youTubePlayerHTML.contents,
+            baseURL: self.originURL
+        )
+        // Return success
+        return true
+    }
+    
+}
+
+// MARK: - WKPreferences+isFullscreenEnabled
+
+private extension WKPreferences {
+    
+    /// The `fullScreenEnabled` key used as fallback under iOS 15.4 and macOS 12.3
+    static let fullScreenEnabledKey = "fullScreenEnabled"
+    
+    /// Bool value if fullscreen HTML element is enabled.
+    var isHTMLElementFullscreenEnabled: Bool {
+        get {
+            if #available(iOS 15.4, macOS 12.3, *) {
+                return self.isElementFullscreenEnabled
+            } else {
+                return (self.value(forKey: Self.fullScreenEnabledKey) as? Bool) == true
+            }
+        }
+        set {
+            if #available(iOS 15.4, macOS 12.3, *) {
+                self.isElementFullscreenEnabled = newValue
+            } else {
+                self.setValue(newValue, forKey: Self.fullScreenEnabledKey)
+            }
+        }
     }
     
 }
