@@ -10,6 +10,6 @@ source 'https://github.com/adrianhartanto004/YouTubePlayerKit-pods'
 ```
 
 ```ruby
-pod 'YouTubePlayerKit', '1.1.12'
+pod 'YouTubePlayerKit', '1.4.0'
 ```
-`1.1.12` is the podspec version based on the tag
+`1.4.0` is the podspec version based on the tag
